@@ -1,0 +1,17 @@
+{
+  "instance_private_ips_db": {
+    "sensitive": false,
+    "type": "string",
+    "value": "10.0.3.214"
+  },
+  "instance_private_ips_worker": {
+    "sensitive": false,
+    "type": "string",
+    "value": "10.0.2.153"
+  },
+  "instance_public_ips": {
+    "sensitive": false,
+    "type": "string",
+    "value": "3.89.212.78"
+  }
+}
