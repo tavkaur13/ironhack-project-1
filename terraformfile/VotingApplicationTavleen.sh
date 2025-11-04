@@ -21,4 +21,4 @@ jq -r '.public_ec2_ips.value[]' tf_outputs.json | awk '{print "[public]\n"$1}' >
 jq -r '.private_worker_ips.value[]' tf_outputs.json | awk '{print "[private_worker]\n"$1}' >> inventory.ini
 jq -r '.private_db_ips.value[]' tf_outputs.json | awk '{print "[private_db]\n"$1}' >> inventory.ini
 echo "Here is the created inventory file"
-cat inventory.ini
+cat inventory_testing.ini

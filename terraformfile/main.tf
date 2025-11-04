@@ -42,6 +42,19 @@ resource "aws_route_table_association" "public_rt_assoc" {
   subnet_id      = aws_subnet.public_subnet.id
   route_table_id = aws_route_table.public_rt.id
 }
+#ADDING NAT HERE FOR INTERNET ACCESS IN PRIVATE SUBNET INSTANCES
+# Elastic IP for NAT Gateway
+resource "aws_eip" "nat_eip" {
+  domain = "vpc"
+}
+# NAT Gateway in the public subnet
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id     = aws_subnet.public_subnet.id
+  tags = {
+    Name = "TavleenProjectNAT"
+  }
+}
 #Public Subnet EC2 instance and its security group
 resource "aws_security_group" "frontend_sg" {
   name        = "frontend-sg"
@@ -69,6 +82,19 @@ resource "aws_security_group" "frontend_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]  # SSH from anywhere
   }
+
+ ingress {
+  from_port   = 2001
+  to_port     = 2001
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]  # Allow from anywhere
+}
+ingress {
+  from_port   = 2000
+  to_port     = 2000
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]  # Allow from anywhere
+}
 
   # Outbound (allow all)
   egress {
@@ -110,6 +136,12 @@ resource "aws_route_table_association" "private_app_assoc" {
   subnet_id      = aws_subnet.private_worker.id
   route_table_id = aws_route_table.private_worker.id
 }
+# Add route for private subnet to NAT Gateway from private-worker subnet
+resource "aws_route" "private_to_nat" {
+  route_table_id         = aws_route_table.private_worker.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.nat.id
+}
 #Below is security group and associated EC2 instance in this private subnet 1. Needs traffic flow only to and from within VPC i.e other subnets
 resource "aws_security_group" "private_sg" {
   name        = "private-sg"
@@ -130,7 +162,13 @@ resource "aws_security_group" "private_sg" {
     protocol    = "tcp"
     cidr_blocks = [aws_vpc.my_vpc.cidr_block]  # allow all ports from VPC
   }
-
+ # Allow SSH from the bastion security group
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend_sg.id]  # reference bastion SG
+  }
   # Outbound rules: allow traffic only to postgres in another private subnet
   egress {
     from_port   = 0
@@ -174,6 +212,12 @@ resource "aws_route_table_association" "private_db_assoc" {
   subnet_id = aws_subnet.private_db.id
   route_table_id = aws_route_table.private_db.id
 }
+# Add route for private subnet to NAT Gateway from private-db subnet
+resource "aws_route" "private_to_nat_from_db" {
+  route_table_id         = aws_route_table.private_db.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.nat.id
+}
 resource "aws_security_group" "private_sg_db" {
   name        = "private-sg-db"
   description = "Allow traffic from within VPC only"
@@ -193,7 +237,13 @@ resource "aws_security_group" "private_sg_db" {
     protocol    = "tcp"
     cidr_blocks = [aws_vpc.my_vpc.cidr_block]  # allow all ports from VPC
   }
-
+ # Allows ssh from bastion host(needed to ssh from ansible using jump host)
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend_sg.id]  # reference bastion SG
+  }
   # Outbound rules: allow traffic only to postgres in another private subnet
   egress {
     from_port   = 0
