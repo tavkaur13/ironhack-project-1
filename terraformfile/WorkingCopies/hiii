@@ -1,0 +1,19 @@
+# Bastion host
+Host public-bastion
+    HostName 44.201.58.172
+    User ubuntu
+    IdentityFile ~/.ssh/tavleen_project1.pem
+
+# Private worker server
+Host private-worker
+    HostName 10.0.2.198
+    User ubuntu
+    ProxyJump public-bastion
+    IdentityFile ~/.ssh/tavleen_project1.pem
+
+# Private DB server
+Host private-db
+    HostName 10.0.3.220
+    User ubuntu
+    ProxyJump public-bastion
+    IdentityFile ~/.ssh/tavleen_project1.pem

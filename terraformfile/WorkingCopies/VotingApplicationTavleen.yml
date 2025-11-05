@@ -72,6 +72,7 @@
         restart_policy: always
         pull: yes
         published_ports:
+          - "6379:6379"
 
 - name: Deploy containers on public-bastion host
   hosts: public-bastion
