@@ -1,0 +1,105 @@
+---
+- name: Install docker on all hosts and make ubuntu able to use docker without sudo
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt package index
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install Docker if not present
+      ansible.builtin.package:
+        name: docker.io
+        state: present
+
+    - name: Add user to docker group
+      ansible.builtin.user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+- name: Deploy Postgres on private-db
+  hosts: private-db
+  become: yes
+  vars:
+    postgres_password: "postgres"
+  tasks:
+
+    - name: Run Postgres container
+      community.docker.docker_container:
+        name: db
+        image: docker.io/postgres:latest
+        state: started
+        restart_policy: always
+        pull: yes
+        env:
+          POSTGRES_PASSWORD: "{{ postgres_password }}"
+          POSTGRES_USER: "postgres"
+        published_ports:
+          - "5432:5432"
+    - name: Wait for Postgres to be ready
+      wait_for:
+        host: "10.0.3.220"
+        port: "5432"
+        delay: "5"
+        timeout: "60"
+
+- name: Deploy container on private-worker
+  hosts: private-worker
+  become: yes
+  tasks:
+    - name: Run worker container
+      community.docker.docker_container:
+        name: worker_app
+        image: docker.io/tavkaur13/ironhackproject1:worker-app
+        state: started
+        restart_policy: always
+        network_mode: host
+        env:
+          DB_HOST: "10.0.3.220"   # private IP of the Postgres EC2
+          DB_PORT: "5432"
+          DB_USER: "postgres"
+          DB_PASSWORD: "postgres"
+          REDIS_HOST: "127.0.0.1" #local host to connect to redis
+          REDIS_PORT: "6379"
+
+
+    - name: Run Redis container
+      community.docker.docker_container:
+        name: redis
+        image: docker.io/redis:latest
+        state: started
+        restart_policy: always
+        pull: yes
+        published_ports:
+          - "6379:6379"
+
+- name: Deploy containers on public-bastion host
+  hosts: public-bastion
+  become: yes
+  tasks:
+    - name: Run voting-app container
+      community.docker.docker_container:
+        name: voting_app
+        image: docker.io/tavkaur13/ironhackproject1:voting-app
+        state: started
+        restart_policy: always
+        ports:
+          - "2000:80"
+        env:
+          REDIS_HOST: "10.0.2.198"      # Private IP of EC2 running Redis
+          REDIS_PORT: "6379"
+
+    - name: Run result-app container
+      community.docker.docker_container:
+        name: result_app
+        image: docker.io/tavkaur13/ironhackproject1:result-app
+        state: started
+        restart_policy: always
+        ports:
+          - "2001:80"
+        env:
+          PG_HOST: "10.0.3.220"       # Private IP of EC2 with Postgres
+          PG_PORT: "5432"
+          PG_USER: "postgres"
+          PG_PASSWORD: "postgres"
